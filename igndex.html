@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitChat - Firebase Chat</title>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-database.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #0969da;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --text-primary: #24292f;
+            --text-secondary: #57606a;
+            --border: #d0d7de;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary: #58a6ff;
+                --bg-primary: #0d1117;
+                --bg-secondary: #161b22;
+                --text-primary: #c9d1d9;
+                --text-secondary: #8b949e;
+                --border: #30363d;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+        }
+
+        .auth-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: var(--bg-secondary);
+        }
+        .auth-box {
+            background: var(--bg-primary);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            width: 100%;
+            max-width: 400px;
+        }
+        .auth-box h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .auth-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .auth-button {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+        .auth-toggle { text-align: center; font-size: 14px; }
+        .auth-toggle button { background: none; border: none; color: var(--primary); cursor: pointer; }
+
+        .app-container {
+            display: none;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .search-box {
+            padding: 0 12px 12px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .conversations-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .conv-item {
+            padding: 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            font-size: 14px;
+        }
+        .conv-item:hover { background: var(--bg-tertiary); }
+        .conv-item.active {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+        .sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .btn {
+            width: 100%;
+            padding: 10px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn:hover { background: var(--bg-primary); }
+        .btn.primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+        .message {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .message-content {
+            flex: 1;
+        }
+        .message-header {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .message-text {
+            background: var(--bg-secondary);
+            padding: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+        .message-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .input-area {
+            padding: 16px 24px 24px;
+            border-top: 1px solid var(--border);
+        }
+        .input-wrapper {
+            display: flex;
+            gap: 8px;
+        }
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            max-height: 120px;
+        }
+        .send-btn {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--bg-primary);
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Auth Screen -->
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-box">
+            <h1>🔐 GitChat</h1>
+            
+            <div id="loginDiv">
+                <input type="email" id="email" class="auth-input" placeholder="Email">
+                <input type="password" id="password" class="auth-input" placeholder="Password (min 6 chars)">
+                <button class="auth-button" onclick="handleLogin()">Sign In</button>
+                <div class="auth-toggle">
+                    No account? <button onclick="toggleAuthMode()">Create one</button>
+                </div>
+            </div>
+
+            <div id="signupDiv" style="display:none;">
+                <input type="text" id="displayName" class="auth-input" placeholder="Your Name">
+                <input type="email" id="signupEmail" class="auth-input" placeholder="Email">
+                <input type="password" id="signupPassword" class="auth-input" placeholder="Password (min 6 chars)">
+                <button class="auth-button" onclick="handleSignup()">Create Account</button>
+                <div class="auth-toggle">
+                    Have account? <button onclick="toggleAuthMode()">Sign In</button>
+                </div>
+            </div>
+
+            <div id="authError" style="color:#da3633; font-size:13px; margin-top:12px; display:none;"></div>
+        </div>
+    </div>
+
+    <!-- App Screen -->
+    <div id="appScreen" class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">💬 GitChat</div>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterConversations()">
+            </div>
+            <div class="conversations-list" id="convList"></div>
+            <div class="sidebar-footer">
+                <button class="btn primary" onclick="openNewConvModal()">+ New Chat</button>
+                <button class="btn" onclick="logout()" style="margin-top:8px;">Logout</button>
+            </div>
+        </div>
+
+        <div class="chat-area">
+            <div id="emptyState" class="empty-state">
+                <div>
+                    <div style="font-size:48px;margin-bottom:16px;">💬</div>
+                    <h2 style="margin-bottom:8px;">Select a conversation</h2>
+                    <p style="color:var(--text-secondary);">or create a new one</p>
+                </div>
+            </div>
+
+            <div id="chatView" style="display:none;flex:1;display:flex;flex-direction:column;">
+                <div class="chat-header" id="chatTitle"></div>
+                <div class="messages-area" id="messagesArea"></div>
+                <div class="input-area">
+                    <div class="input-wrapper">
+                        <textarea id="msgInput" class="message-input" placeholder="Type message..." rows="1" 
+                                  onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+                        <button class="send-btn" onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div id="newChatModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-title">New Conversation</div>
+            <input type="email" id="recipientEmail" class="auth-input" placeholder="Recipient email">
+            <div class="modal-buttons">
+                <button class="btn" onclick="closeNewChatModal()">Cancel</button>
+                <button class="btn primary" onclick="createConversation()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== FIREBASE CONFIG ==========
+        // 👇 PASTE YOUR CONFIG HERE 👇
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+            projectId: "YOUR_PROJECT",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // 👆 PASTE YOUR CONFIG HERE 👆
+
+        // Initialize Firebase
+        let app, auth, database;
+        let currentUser = null;
+        let currentConv = null;
+        let convs = new Map();
+        let msgs = new Map();
+
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            database = firebase.database();
+            console.log('✅ Firebase initialized');
+        } catch(e) {
+            console.error('❌ Firebase error:', e);
+            document.getElementById('authError').textContent = 'Firebase not configured';
+            document.getElementById('authError').style.display = 'block';
+        }
+
+        // Auth functions
+        function toggleAuthMode() {
+            document.getElementById('loginDiv').style.display = 
+                document.getElementById('loginDiv').style.display === 'none' ? 'block' : 'none';
+            document.getElementById('signupDiv').style.display = 
+                document.getElementById('signupDiv').style.display === 'none' ? 'block' : 'none';
+            document.getElementById('authError').style.display = 'none';
+        }
+
+        async function handleLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            if (!email || !password) {
+                showError('Enter email and password');
+                return;
+            }
+            try {
+                const res = await auth.signInWithEmailAndPassword(email, password);
+                currentUser = res.user;
+                showApp();
+            } catch(e) {
+                showError(e.message);
+            }
+        }
+
+        async function handleSignup() {
+            const name = document.getElementById('displayName').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            if (!name || !email || !password || password.length < 6) {
+                showError('Fill all fields. Password must be 6+ chars');
+                return;
+            }
+            try {
+                const res = await auth.createUserWithEmailAndPassword(email, password);
+                currentUser = res.user;
+                await currentUser.updateProfile({ displayName: name });
+                await database.ref(`users/${currentUser.uid}`).set({
+                    name: name,
+                    email: email
+                });
+                showApp();
+            } catch(e) {
+                showError(e.message);
+            }
+        }
+
+        function logout() {
+            auth.signOut();
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('authError');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        // UI functions
+        function showApp() {
+            document.getElementById('authScreen').style.display = 'none';
+            document.getElementById('appScreen').style.display = 'flex';
+            loadConversations();
+        }
+
+        function hideApp() {
+            document.getElementById('authScreen').style.display = 'flex';
+            document.getElementById('appScreen').style.display = 'none';
+        }
+
+        function loadConversations() {
+            const ref = database.ref('conversations');
+            ref.on('value', (snap) => {
+                const data = snap.val() || {};
+                convs.clear();
+                Object.values(data).forEach(c => {
+                    if (c.participants && c.participants[currentUser.uid]) {
+                        convs.set(c.id, c);
+                    }
+                });
+                renderConversations();
+            });
+        }
+
+        function renderConversations() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const list = document.getElementById('convList');
+            const arr = Array.from(convs.values())
+                .filter(c => c.name.toLowerCase().includes(search))
+                .sort((a,b) => b.lastMessageTime - a.lastMessageTime);
+
+            list.innerHTML = arr.map(c => `
+                <div class="conv-item ${c.id === currentConv ? 'active' : ''}" onclick="selectConversation('${c.id}')">
+                    <strong>${c.name}</strong>
+                    <div style="font-size:12px;color:var(--text-secondary);">${c.lastMessage.substring(0,40)}</div>
+                </div>
+            `).join('');
+        }
+
+        function filterConversations() {
+            renderConversations();
+        }
+
+        function selectConversation(id) {
+            currentConv = id;
+            const c = convs.get(id);
+            document.getElementById('chatTitle').textContent = c.name;
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('chatView').style.display = 'flex';
+            renderConversations();
+            loadMessages(id);
+        }
+
+        function loadMessages(id) {
+            const ref = database.ref(`messages/${id}`);
+            ref.on('value', (snap) => {
+                const data = snap.val() || {};
+                const arr = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
+                renderMessages(arr);
+            });
+        }
+
+        function renderMessages(arr) {
+            const area = document.getElementById('messagesArea');
+            area.innerHTML = arr.map(m => `
+                <div class="message">
+                    <div class="avatar">${m.author[0].toUpperCase()}</div>
+                    <div class="message-content">
+                        <div class="message-header">${m.author}</div>
+                        <div class="message-text">${escapeHtml(m.text)}</div>
+                        <div class="message-time">${formatTime(m.timestamp)}</div>
+                    </div>
+                </div>
+            `).join('');
+            area.scrollTop = area.scrollHeight;
+        }
+
+        async function sendMessage() {
+            if (!currentConv) return;
+            const text = document.getElementById('msgInput').value.trim();
+            if (!text) return;
+
+            const id = database.ref(`messages/${currentConv}`).push().key;
+            const now = Date.now();
+            const msg = {
+                id: id,
+                author: currentUser.displayName || currentUser.email.split('@')[0],
+                authorId: currentUser.uid,
+                text: text,
+                timestamp: now
+            };
+
+            const updates = {};
+            updates[`messages/${currentConv}/${id}`] = msg;
+            updates[`conversations/${currentConv}/lastMessage`] = text;
+            updates[`conversations/${currentConv}/lastMessageTime`] = now;
+
+            await database.ref().update(updates);
+            document.getElementById('msgInput').value = '';
+        }
+
+        function openNewChatModal() {
+            document.getElementById('newChatModal').classList.add('active');
+        }
+
+        function closeNewChatModal() {
+            document.getElementById('newChatModal').classList.remove('active');
+        }
+
+        async function createConversation() {
+            const email = document.getElementById('recipientEmail').value.trim();
+            if (!email) {
+                alert('Enter email');
+                return;
+            }
+
+            const id = database.ref('conversations').push().key;
+            const now = Date.now();
+
+            const conv = {
+                id: id,
+                name: email.split('@')[0],
+                participants: {
+                    [currentUser.uid]: true,
+                    [email]: true
+                },
+                lastMessage: 'Conversation started',
+                lastMessageTime: now,
+                owner: currentUser.uid
+            };
+
+            await database.ref(`conversations/${id}`).set(conv);
+            closeNewChatModal();
+            document.getElementById('recipientEmail').value = '';
+        }
+
+        // Utility
+        function formatTime(t) {
+            const now = Date.now();
+            const diff = now - t;
+            const mins = Math.floor(diff/60000);
+            if (mins < 1) return 'now';
+            if (mins < 60) return `${mins}m`;
+            const hrs = Math.floor(mins/60);
+            if (hrs < 24) return `${hrs}h`;
+            return new Date(t).toLocaleDateString();
+        }
+
+        function escapeHtml(t) {
+            const d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+
+        // Auth state
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                showApp();
+            } else {
+                hideApp();
+            }
+        });
+    </script>
+</body>
+</html>

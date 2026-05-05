@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitChat - Firebase Chat</title>
+    <title>GitChat</title>
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-database.js"></script>
@@ -278,7 +278,7 @@
     <!-- Auth Screen -->
     <div id="authScreen" class="auth-screen">
         <div class="auth-box">
-            <h1>🔐 GitChat</h1>
+            <h1>ChatThing</h1>
             
             <div id="loginDiv">
                 <input type="email" id="email" class="auth-input" placeholder="Email">
@@ -306,7 +306,7 @@
     <!-- App Screen -->
     <div id="appScreen" class="app-container">
         <div class="sidebar">
-            <div class="sidebar-header">💬 GitChat</div>
+            <div class="sidebar-header">GitChat</div>
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterConversations()">
             </div>
@@ -353,35 +353,67 @@
     </div>
 
     <script>
-        // ========== FIREBASE CONFIG ==========
-        // 👇 PASTE YOUR CONFIG HERE 👇
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT.firebaseapp.com",
-            databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-            projectId: "YOUR_PROJECT",
-            storageBucket: "YOUR_PROJECT.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey:"AIzaSyCLHdpN3mlKPLhIWKlACcq5z1cVRTiEyrM",
+            authDomain:"gitchat-c15c4.firebaseapp.com",
+            databaseURL: "https://gitchat-c15c4-default-rtdb.firebaseio.com",
+            projectId: "gitchat-c15c4",
+            storageBucket:"gitchat-c15c4.firebasestorage.app",
+            messagingSenderId: "2343861239",
+            appId: "1:2343861239:web:fe7aad663372d0face8cf2"
         };
-        // 👆 PASTE YOUR CONFIG HERE 👆
 
-        // Initialize Firebase
         let app, auth, database;
         let currentUser = null;
         let currentConv = null;
         let convs = new Map();
         let msgs = new Map();
+        let firebaseReady = false;
 
-        try {
-            app = firebase.initializeApp(firebaseConfig);
-            auth = firebase.auth();
-            database = firebase.database();
-            console.log('✅ Firebase initialized');
-        } catch(e) {
-            console.error('❌ Firebase error:', e);
-            document.getElementById('authError').textContent = 'Firebase not configured';
-            document.getElementById('authError').style.display = 'block';
+        // Wait for Firebase to load
+        function initFirebase() {
+            try {
+                // Check if Firebase is available
+                if (typeof firebase === 'undefined') {
+                    throw new Error('Firebase SDK not loaded');
+                }
+
+                // Check if already initialized
+                try {
+                    app = firebase.app();
+                } catch (e) {
+                    app = firebase.initializeApp(firebaseConfig);
+                }
+
+                auth = firebase.auth();
+                database = firebase.database();
+                firebaseReady = true;
+                console.log('Done !!');
+                
+                // Set up auth listener
+                if (auth && auth.onAuthStateChanged) {
+                    auth.onAuthStateChanged((user) => {
+                        if (user) {
+                            currentUser = user;
+                            showApp();
+                        } else {
+                            hideApp();
+                        }
+                    });
+                }
+            } catch(e) {
+                console.error('ERRORR', e.message);
+                showAuthError('Firebase config error: ' + e.message);
+                firebaseReady = false;
+            }
+        }
+
+        // Initialize when Firebase SDK is loaded
+        if (window.firebase) {
+            initFirebase();
+        } else {
+            // Wait for Firebase to load
+            window.addEventListener('load', initFirebase);
         }
 
         // Auth functions
@@ -394,10 +426,14 @@
         }
 
         async function handleLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            if (!firebaseReady) {
+                showAuthError('not ready');
+                return;
+            }
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
             if (!email || !password) {
-                showError('Enter email and password');
+                showAuthError('Enter email and password');
                 return;
             }
             try {
@@ -405,16 +441,20 @@
                 currentUser = res.user;
                 showApp();
             } catch(e) {
-                showError(e.message);
+                showAuthError(e.message);
             }
         }
 
         async function handleSignup() {
-            const name = document.getElementById('displayName').value;
-            const email = document.getElementById('signupEmail').value;
-            const password = document.getElementById('signupPassword').value;
+            if (!firebaseReady) {
+                showAuthError('Firebase not ready. Check your config.');
+                return;
+            }
+            const name = document.getElementById('displayName').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const password = document.getElementById('signupPassword').value.trim();
             if (!name || !email || !password || password.length < 6) {
-                showError('Fill all fields. Password must be 6+ chars');
+                showAuthError('Fill all fields. Password must be 6+ chars');
                 return;
             }
             try {
@@ -427,15 +467,17 @@
                 });
                 showApp();
             } catch(e) {
-                showError(e.message);
+                showAuthError(e.message);
             }
         }
 
         function logout() {
-            auth.signOut();
+            if (firebaseReady && auth) {
+                auth.signOut();
+            }
         }
 
-        function showError(msg) {
+        function showAuthError(msg) {
             const el = document.getElementById('authError');
             el.textContent = msg;
             el.style.display = 'block';
@@ -454,6 +496,10 @@
         }
 
         function loadConversations() {
+            if (!firebaseReady || !database || !currentUser) {
+                console.error('Firebase not ready or user not logged in');
+                return;
+            }
             const ref = database.ref('conversations');
             ref.on('value', (snap) => {
                 const data = snap.val() || {};
@@ -464,6 +510,8 @@
                     }
                 });
                 renderConversations();
+            }, (error) => {
+                console.error('Error loading conversations:', error);
             });
         }
 
@@ -497,11 +545,17 @@
         }
 
         function loadMessages(id) {
+            if (!firebaseReady || !database) {
+                console.error('Firebase not ready');
+                return;
+            }
             const ref = database.ref(`messages/${id}`);
             ref.on('value', (snap) => {
                 const data = snap.val() || {};
                 const arr = Object.values(data).sort((a,b) => a.timestamp - b.timestamp);
                 renderMessages(arr);
+            }, (error) => {
+                console.error('Error loading messages:', error);
             });
         }
 
@@ -521,27 +575,34 @@
         }
 
         async function sendMessage() {
-            if (!currentConv) return;
+            if (!firebaseReady || !database || !currentConv) {
+                console.error('Firebase not ready or no conversation selected');
+                return;
+            }
             const text = document.getElementById('msgInput').value.trim();
             if (!text) return;
 
-            const id = database.ref(`messages/${currentConv}`).push().key;
-            const now = Date.now();
-            const msg = {
-                id: id,
-                author: currentUser.displayName || currentUser.email.split('@')[0],
-                authorId: currentUser.uid,
-                text: text,
-                timestamp: now
-            };
+            try {
+                const id = database.ref(`messages/${currentConv}`).push().key;
+                const now = Date.now();
+                const msg = {
+                    id: id,
+                    author: currentUser.displayName || currentUser.email.split('@')[0],
+                    authorId: currentUser.uid,
+                    text: text,
+                    timestamp: now
+                };
 
-            const updates = {};
-            updates[`messages/${currentConv}/${id}`] = msg;
-            updates[`conversations/${currentConv}/lastMessage`] = text;
-            updates[`conversations/${currentConv}/lastMessageTime`] = now;
+                const updates = {};
+                updates[`messages/${currentConv}/${id}`] = msg;
+                updates[`conversations/${currentConv}/lastMessage`] = text;
+                updates[`conversations/${currentConv}/lastMessageTime`] = now;
 
-            await database.ref().update(updates);
-            document.getElementById('msgInput').value = '';
+                await database.ref().update(updates);
+                document.getElementById('msgInput').value = '';
+            } catch(e) {
+                console.error('Error sending message:', e);
+            }
         }
 
         function openNewChatModal() {
@@ -553,30 +614,39 @@
         }
 
         async function createConversation() {
+            if (!firebaseReady || !database || !currentUser) {
+                console.error('Firebase not ready');
+                return;
+            }
             const email = document.getElementById('recipientEmail').value.trim();
             if (!email) {
                 alert('Enter email');
                 return;
             }
 
-            const id = database.ref('conversations').push().key;
-            const now = Date.now();
+            try {
+                const id = database.ref('conversations').push().key;
+                const now = Date.now();
 
-            const conv = {
-                id: id,
-                name: email.split('@')[0],
-                participants: {
-                    [currentUser.uid]: true,
-                    [email]: true
-                },
-                lastMessage: 'Conversation started',
-                lastMessageTime: now,
-                owner: currentUser.uid
-            };
+                const conv = {
+                    id: id,
+                    name: email.split('@')[0],
+                    participants: {
+                        [currentUser.uid]: true,
+                        [email]: true
+                    },
+                    lastMessage: 'Conversation started',
+                    lastMessageTime: now,
+                    owner: currentUser.uid
+                };
 
-            await database.ref(`conversations/${id}`).set(conv);
-            closeNewChatModal();
-            document.getElementById('recipientEmail').value = '';
+                await database.ref(`conversations/${id}`).set(conv);
+                closeNewChatModal();
+                document.getElementById('recipientEmail').value = '';
+            } catch(e) {
+                console.error('Error creating conversation:', e);
+                alert('Error creating conversation: ' + e.message);
+            }
         }
 
         // Utility
@@ -597,15 +667,6 @@
             return d.innerHTML;
         }
 
-        // Auth state
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                currentUser = user;
-                showApp();
-            } else {
-                hideApp();
-            }
-        });
     </script>
 </body>
 </html>
